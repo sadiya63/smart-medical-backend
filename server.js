@@ -1,6 +1,5 @@
 require('dotenv').config();
 
-console.log("ENV CHECK:",process.env.MONGO_URI);
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -33,9 +32,6 @@ app.use(session({
 /* ---------- ROUTES ---------- */
 app.use('/api/chatbot', require('./routes/chatbot'));
 app.use('/api/appointments', appointmentRoutes);
-
-/* ---------- MONGODB CONNECTION ---------- */
-console.log("MONGO_URI =>", process.env.MONGO_URI);
 
 mongoose
   .connect(process.env.MONGO_URI)
