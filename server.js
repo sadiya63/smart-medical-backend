@@ -1,3 +1,6 @@
+console.log("ENV CHECK:",process.env.MONGO_URI);
+require('dotenv').config();
+
 const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
@@ -9,12 +12,11 @@ const appointmentRoutes = require('./routes/appointments');
 const User = require('./models/User');
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
+/* ---------- MIDDLEWARE ---------- */
 app.use(cors({
-  origin: 'http://localhost:3000',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type'],
+  origin: true,
   credentials: true
 }));
 
@@ -22,17 +24,24 @@ app.use(express.json());
 app.use(bodyParser.json());
 
 app.use(session({
-  secret: 'secretKey',
+  secret: process.env.SESSION_SECRET || 'secretKey',
   resave: false,
   saveUninitialized: false,
 }));
 
+/* ---------- ROUTES ---------- */
 app.use('/api/chatbot', require('./routes/chatbot'));
+app.use('/api/appointments', appointmentRoutes);
 
-mongoose.connect('mongodb://127.0.0.1:27017/appointmentDB')
-  .then(() => console.log('✅ Connected to MongoDB'))
+/* ---------- MONGODB CONNECTION ---------- */
+console.log("MONGO_URI =>", process.env.MONGO_URI);
+
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => console.log('✅ Connected to MongoDB Atlas'))
   .catch(err => console.error('❌ MongoDB connection error:', err));
 
+/* ---------- AUTH ROUTES ---------- */
 app.get('/', (req, res) => {
   res.send('API is running...');
 });
@@ -40,20 +49,20 @@ app.get('/', (req, res) => {
 app.post('/api/register', async (req, res) => {
   try {
     const { email, password } = req.body;
-    const existing = await User.findOne({ email });
 
-    if (existing) {
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
       return res.status(400).json({ message: 'User already exists' });
     }
 
-    const hash = await bcrypt.hash(password, 10);
-    const newUser = new User({ email, password: hash });
-    await newUser.save();
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = new User({ email, password: hashedPassword });
 
-    console.log(`✅ User registered: ${email}`);
+    await newUser.save();
     res.status(201).json({ message: 'User registered successfully' });
+
   } catch (error) {
-    console.error('❌ Registration error:', error);
+    console.error(error);
     res.status(500).json({ message: 'Server error during registration' });
   }
 });
@@ -61,29 +70,27 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
 
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: 'User not found' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
-
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
     req.session.user = user;
-    console.log(`✅ User logged in: ${email}`);
     res.json({ success: true });
+
   } catch (error) {
-    console.error('❌ Login error:', error);
+    console.error(error);
     res.status(500).json({ message: 'Server error during login' });
   }
 });
 
-app.use('/api/appointments', appointmentRoutes);
-
+/* ---------- START SERVER ---------- */
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
